@@ -1,0 +1,16 @@
+node_modules/
+coverage/
+dist/
+build/
+*.dll
+*.exe
+*.obj
+*.o
+*.log
+.env
+.env.*
+!.env.example
+config.local.json
+*.pid
+obs-frame-heartbeat-native-*.txt
+obs-frame-heartbeat-native-*.tmp

@@ -1,0 +1,50 @@
+set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
+set quiet := true
+
+default:
+    just --list
+
+watch:
+    node --env-file-if-exists=.env src/cli.js watch
+
+watch-pixels:
+    node --env-file-if-exists=.env src/cli.js watch-pixels
+
+recover name:
+    node --env-file-if-exists=.env src/cli.js recover "{{name}}"
+
+start-native:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 start native
+
+stop-native:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 stop native
+
+status-native:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 status native
+
+restart-native:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 restart native
+
+logs-native:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 logs native
+
+start:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 start pixels
+
+stop:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 stop pixels
+
+status:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 status pixels
+
+restart:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 restart pixels
+
+logs:
+    powershell.exe -NoLogo -NoProfile -File tools/manage-watchdog.ps1 logs pixels
+
+test:
+    node --test
+
+build-probe:
+    powershell.exe -NoLogo -NoProfile -File native-probe/build.ps1 -Test

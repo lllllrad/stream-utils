@@ -1,0 +1,11 @@
+{
+  "name": "@stream-utils/obs-watchdog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OBS source frame watchdog and recovery tools",
+  "engines": { "node": ">=22.15.0" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/cli.js watch",
+    "test": "node --test"
+  }
+}
