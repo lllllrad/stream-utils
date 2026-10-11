@@ -4,7 +4,121 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { pollSources, watch } = require('../src/runtime');
 const { makeSourceState } = require('../src/monitor');
-const config = { sources: ['camera'], freezeThresholdChecks: 3, staleWarnMs: 5000, recoveryCooldownMs: 30000, pollIntervalMs: 1, reconnectDelayMs: 1 };
+const config = { sources: ['camera'], freezeThresholdChecks: 3, staleWarnMs: 5000, staleRecoverMs: 15000, recoveryCooldownMs: 30000, pollIntervalMs: 1, reconnectDelayMs: 1 };
+
+test('stale capture board recovery uses visible peer evidence regardless of source order', async () => {
+  for (const sources of [['capture', 'camera'], ['camera', 'capture']]) {
+    const states = new Map(sources.map((name) => [name, makeSourceState()]));
+    const calls = [];
+    const logs = [];
+    let time = 106000;
+    const request = async (type, data) => {
+      calls.push([type, data]);
+      return type === 'GetSourceActive' ? { videoActive: true, videoShowing: true } : { inputSettings: { device: 'id' } };
+    };
+    const options = { now: () => time, log: (line) => logs.push(line), heartbeats: () => new Map([
+      ['capture', { count: 5931260n, writtenAt: 100, filePath: 'capture' }],
+      ['camera', { count: BigInt(time), writtenAt: time / 1000, filePath: 'camera' }],
+    ]) };
+    await pollSources({ ...config, sources }, request, states, options);
+    time = 121000;
+    await pollSources({ ...config, sources }, request, states, options);
+    time = 121500;
+    await pollSources({ ...config, sources }, request, states, options);
+    assert.deepEqual(calls.filter(([type]) => type === 'SetInputSettings').map(([, data]) => data.inputName), ['capture']);
+    const evidence = JSON.parse(logs.find((line) => line.includes('recovery evidence')).split('recovery evidence ')[1]);
+    assert.deepEqual(evidence, { reason: 'stale', heartbeat: { count: '5931260', writtenAt: 100, ageMs: 21000 },
+      videoActive: true, videoShowing: true, healthyPeers: ['camera'] });
+  }
+});
+
+test('stale sources are not recovered without a visible fresh peer or with failed status requests', async () => {
+  for (const scenario of ['single', 'all-stale', 'hidden-peer', 'missing-peer', 'future-peer', 'failed-peer', 'hidden-target', 'failed-target']) {
+    const sources = scenario === 'single' ? ['capture'] : ['capture', 'camera'];
+    const states = new Map(sources.map((name) => [name, makeSourceState()]));
+    let time = 106000;
+    let mutations = 0;
+    const request = async (type, data) => {
+      if (type !== 'GetSourceActive') { mutations++; return { inputSettings: {} }; }
+      if ((scenario === 'failed-peer' && data.sourceName === 'camera')
+        || (scenario === 'failed-target' && data.sourceName === 'capture')) throw new Error('lookup failed');
+      return { videoShowing: !((scenario === 'hidden-peer' && data.sourceName === 'camera')
+        || (scenario === 'hidden-target' && data.sourceName === 'capture')) };
+    };
+    const options = { now: () => time, log: () => {}, heartbeats: () => new Map([
+      ['capture', { count: 1n, writtenAt: 100, filePath: 'capture' }],
+      ['camera', scenario === 'missing-peer' ? null : { count: BigInt(time),
+        writtenAt: scenario === 'all-stale' ? 100 : scenario === 'future-peer' ? 999 : time / 1000, filePath: 'camera' }],
+    ]) };
+    await pollSources({ ...config, sources }, request, states, options);
+    time = 121000;
+    await pollSources({ ...config, sources }, request, states, options);
+    assert.equal(mutations, 0, scenario);
+  }
+});
+
+test('dry-run logs native and pixel recovery decisions without querying or changing input settings', async () => {
+  for (const mode of ['native', 'pixels']) {
+    const states = new Map([['camera', makeSourceState()]]);
+    const calls = [];
+    const logs = [];
+    const request = async (type) => {
+      calls.push(type);
+      if (type === 'GetSourceActive') return { videoShowing: true };
+      if (type === 'GetSourceScreenshot') return { imageData: 'data:image/png;base64,aW1hZ2U=' };
+      throw new Error('dry-run must not read or change input settings');
+    };
+    for (let i = 0; i < 5; i++) await pollSources({ ...config, dryRun: true }, request, states, {
+      mode, now: () => 100000, log: (line) => logs.push(line),
+      heartbeats: () => new Map([['camera', { count: 1n, writtenAt: 100, filePath: 'probe' }]]),
+    });
+    assert.equal(calls.includes('GetInputSettings'), false);
+    assert.equal(calls.includes('SetInputSettings'), false);
+    assert.equal(logs.filter((line) => line.includes('dry-run: would')).length, 1);
+    assert.equal(states.get('camera').cooldownUntil, 130000);
+  }
+});
+
+test('dry-run suppresses sustained stale recovery and applies cooldown', async () => {
+  const sources = ['capture', 'camera'];
+  const states = new Map(sources.map((name) => [name, makeSourceState()]));
+  let time = 106000;
+  const logs = [];
+  const request = async (type) => {
+    assert.equal(type, 'GetSourceActive');
+    return { videoShowing: true };
+  };
+  const options = { now: () => time, log: (line) => logs.push(line), heartbeats: () => new Map([
+    ['capture', { count: 1n, writtenAt: 100, filePath: 'capture' }],
+    ['camera', { count: BigInt(time), writtenAt: time / 1000, filePath: 'camera' }],
+  ]) };
+  for (time of [106000, 121000, 121500]) await pollSources({ ...config, sources, dryRun: true }, request, states, options);
+  assert.equal(logs.filter((line) => line.includes('dry-run: would')).length, 1);
+  assert.equal(states.get('capture').cooldownUntil, 151000);
+});
+
+test('a failed stale recovery has a full cooldown and a new observation period', async () => {
+  const sources = ['capture', 'camera'];
+  const states = new Map(sources.map((name) => [name, makeSourceState()]));
+  let time = 106000;
+  let attempts = 0;
+  const request = async (type) => {
+    if (type === 'GetSourceActive') return { videoShowing: true };
+    attempts++;
+    throw new Error('device unavailable');
+  };
+  const options = { now: () => time, log: () => {}, heartbeats: () => new Map([
+    ['capture', { count: 1n, writtenAt: 100, filePath: 'capture' }],
+    ['camera', { count: BigInt(time), writtenAt: time / 1000, filePath: 'camera' }],
+  ]) };
+  for (time of [106000, 121000, 130000, 150000, 151000, 165000]) {
+    await pollSources({ ...config, sources }, request, states, options);
+  }
+  assert.equal(attempts, 1);
+  time = 166000;
+  await pollSources({ ...config, sources }, request, states, options);
+  assert.equal(attempts, 2);
+});
 
 test('native polling avoids hidden sources and recovers a stopped visible source once', async () => {
   const states = new Map([['camera', makeSourceState()]]);

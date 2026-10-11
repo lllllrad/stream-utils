@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { makeSourceState, observe, recoverSource } = require('../src/monitor');
 
-const config = { freezeThresholdChecks: 3, recoveryCooldownMs: 30000, staleWarnMs: 5000 };
+const config = { freezeThresholdChecks: 3, recoveryCooldownMs: 30000, staleWarnMs: 5000, staleRecoverMs: 15000 };
 function sample(count, now = 100000, showing = true, filePath = 'probe') {
   return { now, showing, heartbeat: { count: BigInt(count), writtenAt: Math.floor(now / 1000), filePath } };
 }
@@ -50,6 +50,50 @@ test('missing and stale heartbeat warnings are emitted once and reset stale comp
 
 test('timestamps in the future cannot trigger a recovery', () => {
   assert.equal(observe(makeSourceState(), { ...sample(10), now: 90000 }, config), 'stale');
+});
+
+test('sustained visible stale heartbeat recovers with a healthy peer and respects cooldown', () => {
+  const state = makeSourceState();
+  const stale = { ...sample(10), now: 106000, healthyPeer: true };
+  assert.equal(observe(state, stale, config), 'stale');
+  assert.equal(observe(state, { ...stale, now: 120999 }, config), 'waiting');
+  assert.equal(observe(state, { ...stale, now: 121000 }, config), 'recover');
+  assert.equal(state.recoveryReason, 'stale');
+  assert.equal(observe(state, { ...stale, now: 121500 }, config), 'cooldown');
+  assert.equal(observe(state, { ...stale, now: 151000 }, config), 'stale');
+});
+
+test('stale recovery requires a healthy peer, including after a blocked warning', () => {
+  const state = makeSourceState();
+  const stale = { ...sample(10), now: 106000 };
+  observe(state, stale, config);
+  assert.equal(observe(state, { ...stale, now: 121000 }, config), 'stale-blocked');
+  assert.equal(observe(state, { ...stale, now: 121500 }, config), 'waiting');
+  assert.equal(observe(state, { ...stale, now: 122000, healthyPeer: true }, config), 'recover');
+});
+
+test('hidden, missing, future and replaced records cannot carry a stale recovery timer', () => {
+  for (const interruption of [
+    { showing: false }, { heartbeat: null },
+    { heartbeat: { count: 10n, writtenAt: 200, filePath: 'probe' } },
+    { heartbeat: { count: 10n, writtenAt: 100, filePath: 'replacement' } },
+    { heartbeat: { count: 11n, writtenAt: 101, filePath: 'probe' } },
+  ]) {
+    const state = makeSourceState();
+    const stale = { ...sample(10), now: 106000, healthyPeer: true };
+    observe(state, stale, config);
+    assert.notEqual(observe(state, { ...stale, now: 121000, ...interruption }, config), 'recover');
+    assert.notEqual(observe(state, { ...stale, now: 121500 }, config), 'recover');
+  }
+});
+
+test('missing files and future timestamps remain warning-only over time', () => {
+  for (const heartbeat of [null, { count: 1n, writtenAt: 999, filePath: 'probe' }]) {
+    const state = makeSourceState();
+    for (const now of [100000, 120000, 140000]) {
+      assert.notEqual(observe(state, { heartbeat, showing: true, healthyPeer: true, now }, config), 'recover');
+    }
+  }
 });
 
 test('recovery reapplies the original settings with overlay enabled', async () => {

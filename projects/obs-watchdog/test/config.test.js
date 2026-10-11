@@ -33,10 +33,21 @@ for (const [name, data] of Object.entries({
   port: { port: 65536 }, interval: { pollIntervalMs: 0 }, threshold: { freezeThresholdChecks: 1 },
   sources: { sources: 'camera' }, emptySource: { sources: [''] }, tab: { sources: ['a\tb'] },
   unknown: { passwrod: 'typo' }, host: { host: 'localhost/path' }, path: { logFile: '' },
+  staleRecovery: { staleRecoverMs: 5000 }, staleRecoveryZero: { staleRecoverMs: 0 },
+  staleRecoveryFraction: { staleRecoverMs: 15000.5 }, dryRun: { dryRun: 'true' },
 })) {
   test(`rejects invalid ${name}`, (t) => assert.throws(() => loadConfig({}, fixture(t, data))));
 }
 
 test('environment port must be numeric', (t) => {
   assert.throws(() => loadConfig({ OBS_WS_PORT: 'bad' }, fixture(t, {})), /port/);
+});
+
+test('stale recovery and dry-run defaults and overrides are validated', (t) => {
+  const defaults = loadConfig({}, fixture(t, {}));
+  assert.equal(defaults.staleRecoverMs, 15000);
+  assert.equal(defaults.dryRun, false);
+  const custom = loadConfig({}, fixture(t, { staleRecoverMs: 20000, dryRun: true }));
+  assert.equal(custom.staleRecoverMs, 20000);
+  assert.equal(custom.dryRun, true);
 });
