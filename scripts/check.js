@@ -18,3 +18,13 @@ for (const file of files(root)) {
   if (result.status !== 0) process.exit(result.status || 1);
 }
 console.log('JavaScript syntax checks passed.');
+
+for (const entry of fs.readdirSync(path.join(root, 'projects'), { withFileTypes: true })) {
+  const config = path.join(root, 'projects', entry.name, 'tsconfig.json');
+  if (!entry.isDirectory() || !fs.existsSync(config)) continue;
+  const tsc = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  if (!fs.existsSync(tsc)) throw new Error('Run npm install for TypeScript checks.');
+  const result = spawnSync(process.execPath, [tsc, '-p', config, '--noEmit'], { stdio: 'inherit' });
+  if (result.status !== 0) process.exit(result.status || 1);
+}
+console.log('TypeScript checks passed.');

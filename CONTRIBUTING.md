@@ -4,7 +4,7 @@
 
 1. `projects/<소문자-kebab-case>`에 독립된 프로젝트를 만듭니다.
 2. README에 목적, 지원 환경, 설정, 실행, 검증 방법을 기록합니다.
-3. JavaScript는 `src/`, Node.js 테스트는 `test/*.test.js`에 둡니다. npm workspace의 패키지 이름은 `@stream-utils/<이름>`으로 정합니다.
+3. 새 Node.js 프로젝트는 TypeScript 소스를 `src/`, 테스트를 `test/*.test.ts`에 두고 `tsconfig.json`으로 CommonJS 빌드 결과를 `dist/`에 출력합니다. 기존 JavaScript 프로젝트는 `test/*.test.js`를 사용합니다. npm workspace의 패키지 이름은 `@stream-utils/<이름>`으로 정합니다.
 4. 다른 언어도 같은 프로젝트 경계를 따르되, 해당 언어의 자연스러운 빌드 구성을 사용합니다.
 
 공통 코드는 여러 프로젝트에서 필요해질 때 분리합니다. 빈 프로젝트나 사용되지 않는 공통 라이브러리를 미리 만들지 않습니다.
