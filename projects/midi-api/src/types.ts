@@ -8,8 +8,19 @@ export interface Config {
   deviceName: string;
   deviceInterface: string;
   heartbeatTimeoutMs: number;
+  microphone: { deviceName: string; deviceInterface: string } | null;
+  obs: ObsConfig | null;
+}
+export interface ObsConfig {
+  host: string;
+  port: number;
+  inputName: string;
+  connectTimeoutMs: number;
+  requestTimeoutMs: number;
+  reconnectDelayMs: number;
 }
 export type MidiEvent =
+  | { type: 'identified'; trackingDevice: string }
   | { type: 'devices'; devices: MidiDevice[] }
   | { type: 'connected'; device: MidiDevice }
   | { type: 'heartbeat' }

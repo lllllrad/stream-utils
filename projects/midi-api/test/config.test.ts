@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadConfig } from '../src/cli';
+import { loadConfig, parseArgs } from '../src/cli';
 
 test('exact device selection and local settings are validated before opening a MIDI port', (t) => {
   assert.equal(loadConfig().deviceName, 'Launchpad MK2');
@@ -17,4 +17,14 @@ test('exact device selection and local settings are validated before opening a M
     fs.writeFileSync(config, JSON.stringify(invalid));
     assert.throws(() => loadConfig(config));
   }
+});
+
+test('OBS control is never enabled by default; enabling requires the explicit startup flag', () => {
+  assert.deepEqual(parseArgs([]), { configFile: undefined, enableObs: false });
+  assert.equal(parseArgs(['--config', 'config.json']).enableObs, false);
+  assert.deepEqual(parseArgs(['--config', 'config.json', '--enable-obs-microphone']), { configFile: 'config.json', enableObs: true });
+  assert.throws(() => parseArgs(['--config']));
+  assert.throws(() => parseArgs(['--enable-obs-microphone', '--enable-obs-microphone']));
+  assert.equal(loadConfig().obs, null);
+  assert.equal(loadConfig().microphone, null);
 });

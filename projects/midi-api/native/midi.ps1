@@ -1,4 +1,4 @@
-param([switch]$List, [string]$DeviceName = 'Launchpad MK2', [string]$DeviceInterface = '')
+param([switch]$List, [switch]$Identify, [string]$DeviceName = 'Launchpad MK2', [string]$DeviceInterface = '')
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 function Send-Event($value) {
@@ -17,6 +17,13 @@ try {
     $selected = $matches[0]
     $midi = New-Object StreamUtils.MidiInput([uint32]$selected.id)
     try {
+        if ($Identify) {
+            try {
+                Add-Type -Path (Join-Path $PSScriptRoot 'LaunchpadLeds.cs')
+                [StreamUtils.LaunchpadLeds]::Identify($selected.name)
+                Send-Event @{ type = 'identified'; trackingDevice = $selected.name }
+            } catch { [Console]::Error.WriteLine('LED identification: ' + $_.Exception.Message) }
+        }
         Send-Event @{ type = 'connected'; device = $selected }
         $nextInventory = [DateTime]::UtcNow.AddSeconds(1)
         $nextHeartbeat = [DateTime]::UtcNow

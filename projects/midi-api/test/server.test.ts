@@ -27,3 +27,20 @@ test('real local HTTP responses reflect fake MIDI holds, release and lost connec
   assert.equal((await fetch(`${origin}/v1/state`, { method: 'POST' })).status, 405);
   assert.equal((await fetch(`${origin}/unknown`)).status, 404);
 });
+
+test('blue microphone state is separate from Warudo; serving state never enables OBS control', async (t) => {
+  const red = new MidiState();
+  const blue = new MidiState();
+  const server = createApi(red, blue);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const device = { id: 1, name: '2 - Launchpad MK2', deviceInterface: 'blue' };
+  blue.accept({ type: 'connected', device });
+  blue.accept({ type: 'midi', status: 0x90, data1: 11, data2: 127 });
+  const mic = await (await fetch(`${origin}/v1/microphone`)).json() as { microphoneEnabled: boolean; obsControlEnabled: boolean };
+  assert.equal(mic.microphoneEnabled, true);
+  assert.equal(mic.obsControlEnabled, false);
+  const tracking = await (await fetch(`${origin}/v1/state`)).json() as { trackingEnabled: boolean };
+  assert.equal(tracking.trackingEnabled, false);
+});

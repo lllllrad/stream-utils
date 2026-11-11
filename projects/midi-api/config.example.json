@@ -2,5 +2,7 @@
   "port": 19100,
   "deviceName": "Launchpad MK2",
   "deviceInterface": "",
-  "heartbeatTimeoutMs": 1500
+  "heartbeatTimeoutMs": 1500,
+  "microphone": null,
+  "obs": null
 }

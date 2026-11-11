@@ -1,0 +1,18 @@
+{
+  "port": 19100,
+  "deviceName": "Launchpad MK2",
+  "deviceInterface": "",
+  "heartbeatTimeoutMs": 1500,
+  "microphone": {
+    "deviceName": "2 - Launchpad MK2",
+    "deviceInterface": ""
+  },
+  "obs": {
+    "host": "127.0.0.1",
+    "port": 4455,
+    "inputName": "REPLACE_WITH_EXACT_OBS_MIC_INPUT_NAME",
+    "connectTimeoutMs": 3000,
+    "requestTimeoutMs": 1000,
+    "reconnectDelayMs": 2000
+  }
+}

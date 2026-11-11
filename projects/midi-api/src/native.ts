@@ -5,7 +5,7 @@ import type { Readable } from 'node:stream';
 import type { Config, MidiEvent } from './types';
 import type { MidiState } from './state';
 
-export function startMidi(config: Config, state: MidiState, { log = console.error } = {}): () => void {
+export function startMidi(config: Config, state: MidiState, { log = console.error, identify = false } = {}): () => void {
   let child: ChildProcessByStdio<null, Readable, Readable>;
   let timer: NodeJS.Timeout | undefined;
   let stopped = false;
@@ -13,13 +13,14 @@ export function startMidi(config: Config, state: MidiState, { log = console.erro
     child = spawn('powershell.exe', [
       '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '../../native/midi.ps1'),
       '-DeviceName', config.deviceName, '-DeviceInterface', config.deviceInterface,
+      ...(identify ? ['-Identify'] : []),
     ], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const lines = readline.createInterface({ input: child.stdout });
     lines.on('line', (line) => {
       try {
         const event = JSON.parse(line) as MidiEvent;
         state.accept(event);
-        if (['connected', 'disconnected', 'error'].includes(event.type)) log(JSON.stringify(event));
+        if (['connected', 'disconnected', 'error', 'identified'].includes(event.type)) log(JSON.stringify(event));
       } catch (error) {
         log(`Invalid MIDI helper event: ${String(error)}`);
         state.accept({ type: 'error', message: 'Invalid MIDI helper event' });

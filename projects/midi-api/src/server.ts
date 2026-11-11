@@ -1,7 +1,8 @@
 import http from 'node:http';
 import type { MidiState } from './state';
+import type { ObsPttStatus } from './obs-ptt';
 
-export function createApi(state: MidiState): http.Server {
+export function createApi(state: MidiState, microphone?: MidiState, obs?: ObsPttStatus): http.Server {
   return http.createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -15,6 +16,13 @@ export function createApi(state: MidiState): http.Server {
       return res.end(JSON.stringify(state.snapshot()));
     }
     if (url.pathname === '/v1/devices') return res.end(JSON.stringify({ devices: state.devices }));
+    if (url.pathname === '/v1/microphone') {
+      if (!microphone) {
+        return res.end(JSON.stringify({ configured: false, microphoneEnabled: false, obsControlEnabled: false }));
+      }
+      const { trackingEnabled: microphoneEnabled, ...snapshot } = microphone.snapshot();
+      return res.end(JSON.stringify({ ...snapshot, configured: true, microphoneEnabled, obsControlEnabled: obs?.enabled ?? false, obs: obs ?? null }));
+    }
     if (url.pathname === '/health') {
       return res.end(JSON.stringify({ ok: true, midiConnected: state.snapshot().connected }));
     }

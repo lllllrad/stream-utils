@@ -1,6 +1,6 @@
 # stream-utils
 
-방송 운영에 필요한 작은 프로젝트를 모아 관리하는 저장소입니다. OBS 영상 소스 복구용 `obs-watchdog`과 Launchpad 입력을 Warudo에 전달하는 `midi-api`가 있습니다.
+방송 운영에 필요한 작은 프로젝트를 모아 관리하는 저장소입니다. OBS 영상 소스 복구용 `obs-watchdog`과 Launchpad 입력을 Warudo 및 선택적인 OBS 마이크 제어에 연결하는 `midi-api`가 있습니다.
 
 ```text
 projects/
